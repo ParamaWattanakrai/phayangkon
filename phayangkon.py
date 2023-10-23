@@ -1,4 +1,4 @@
-from experimental import training_data
+# from experimental import training_data
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,8 +11,7 @@ def argmax(vec):
     return idx.item()
 
 def prepare_sequence(seq, to_ix):
-    idxs = [to_ix[w] for w in seq]
-    return torch.tensor(idxs, dtype=torch.long)
+    return "yes"
 
 def log_sum_exp(vec):
     max_score = vec[0, argmax(vec)]
@@ -66,10 +65,9 @@ class BiLSTM_CRF(nn.Module):
 
     def _get_lstm_features(self, sentence, input):
         self.hidden = self.init_hidden()
-        embeds = self.word_embeds(sentence).view(len(sentence), 1, -1)
-        mine_embed = embed("one_hot", input, embedded).unsqueeze(1)
-        lstm_out, self.hidden = self.lstm(mine_embed, self.hidden)
-        lstm_out = lstm_out.view(len(sentence), self.hidden_dim)
+        embeds = embed("one_hot", input, embedded).unsqueeze(1)
+        lstm_out, self.hidden = self.lstm(embeds, self.hidden)
+        lstm_out = lstm_out.view(len(input), self.hidden_dim)
         lstm_feats = self.hidden2tag(lstm_out)
         return lstm_feats
 
@@ -134,10 +132,10 @@ best_accuracy = 0.0
 best_model_state_dict = None
 best_fold = 0
 
-for sentence, tags in training_data:
-    for word in sentence:
-        if word not in word_to_ix:
-            word_to_ix[word] = len(word_to_ix)
+# for sentence, tags in training_data:
+#     for word in sentence:
+#         if word not in word_to_ix:
+#             word_to_ix[word] = len(word_to_ix)
 
 tag_to_ix = {"B": 0, "I": 1, "O": 2, START_TAG: 3, STOP_TAG: 4}
 kfold = KFold(n_splits=num_kfold,random_state=True ,shuffle=True)
@@ -234,13 +232,26 @@ kfold = KFold(n_splits=num_kfold,random_state=True ,shuffle=True)
 # print(f'Average: {sum/len(results.items()):.2f} %')
 
 # torch.save(model.state_dict(), 'trained_BiLSTM_CR_model.pth') #comment to load end
-model = BiLSTM_CRF(len(word_to_ix), tag_to_ix, EMBEDDING_DIM, HIDDEN_DIM)
+model = BiLSTM_CRF(65, tag_to_ix, EMBEDDING_DIM, HIDDEN_DIM)
 model.load_state_dict(torch.load('trained_BiLSTM_CR_48_Hidden.pth'))
 model.eval()
 
-while True:
-    input_sentence = input("Enter a sentence: ").split()
-    input_word = [(char) for char in input_sentence[0]]
-    precheck_sent = prepare_sequence(input_word, word_to_ix)
-    print(precheck_sent)
-    print(model(precheck_sent,input_word))
+def segment_syllables(sentence):
+    result = []
+    boi = model('yes', sentence)
+    boi = boi[1]
+    b_indices = [i for i, element in enumerate(boi) if element == 0]
+
+    start = 0
+    for index in b_indices:
+        result.append(sentence[start:index])
+        start = index
+    result.append(sentence[start:])
+    result.pop(0)
+    return result
+
+if __name__ == '__main__':
+    while True:
+        input_sentence = input("Enter a sentence: ")
+        precheck_sent = prepare_sequence(input_sentence, word_to_ix)
+        print(model(precheck_sent, input_sentence))
